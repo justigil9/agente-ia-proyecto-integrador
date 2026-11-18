@@ -1,0 +1,477 @@
+{
+  "name": "Worker 1 - Extracción y registro de leads",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "session_id"
+            },
+            {
+              "name": "mensaje"
+            }
+          ]
+        }
+      },
+      "id": "94770014-6ab1-47ab-9e48-f522e7649652",
+      "name": "Entrada: contrato Worker Leads",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "text": "={{ $json.mensaje }}",
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"nombre\": {\n      \"type\": \"string\",\n      \"description\": \"Nombre y apellido. Vacío si no lo dijo\"\n    },\n    \"email\": {\n      \"type\": \"string\",\n      \"description\": \"Email de contacto. Vacío si no lo dijo\"\n    },\n    \"empresa\": {\n      \"type\": \"string\",\n      \"description\": \"Empresa. Vacío si no la dijo\"\n    },\n    \"necesidad\": {\n      \"type\": \"string\",\n      \"description\": \"Proceso o problema a resolver, en una oración\"\n    },\n    \"presupuesto\": {\n      \"type\": \"string\",\n      \"description\": \"Rango en USD o 'No informado'\"\n    },\n    \"rol_decision\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"Decide\",\n        \"Influye\",\n        \"Investiga\",\n        \"No informado\"\n      ]\n    },\n    \"plazo\": {\n      \"type\": \"string\",\n      \"description\": \"Plazo o 'No informado'\"\n    },\n    \"calificacion\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"CALIENTE\",\n        \"TIBIO\",\n        \"FRÍO\"\n      ]\n    },\n    \"resumen\": {\n      \"type\": \"string\",\n      \"description\": \"1 o 2 oraciones que justifican la calificación\"\n    },\n    \"faltantes\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      },\n      \"description\": \"Datos que faltan entre: nombre, email, empresa, necesidad, presupuesto, rol_decision, plazo\"\n    }\n  },\n  \"required\": [\n    \"nombre\",\n    \"email\",\n    \"empresa\",\n    \"necesidad\",\n    \"presupuesto\",\n    \"rol_decision\",\n    \"plazo\",\n    \"calificacion\",\n    \"resumen\",\n    \"faltantes\"\n  ]\n}",
+        "options": {
+          "systemPromptTemplate": "Sos un especialista en extracción de datos comerciales de Atlas Consultoría Digital. Extraé del mensaje del cliente SOLO los datos que estén explícitos; no inventes nada. Si un dato de contacto (nombre, email, empresa) no aparece, devolvé un texto vacío. Calificá con criterio BANT: CALIENTE = presupuesto definido, es quien decide, necesidad concreta y plazo menor a 3 meses; TIBIO = cumple dos o tres criterios; FRÍO = cumple uno o ninguno. Listá en 'faltantes' los datos que no fueron informados."
+        }
+      },
+      "id": "c4b6ba13-c948-4cc5-8576-52ea7e835b53",
+      "name": "Extraer y calificar lead",
+      "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+      "typeVersion": 1,
+      "position": [
+        240,
+        0
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "gpt-4o"
+        },
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "id": "a202dd65-8476-4e07-9199-2ebc79a6a900",
+      "name": "OpenAI Chat Model (GPT-4o)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f0b73ac8-260f-418c-aa84-ef9e53883afb",
+              "leftValue": "={{ $json.output.nombre }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "cf0b9543-0e60-4e09-9b28-d0c3a2a87196",
+              "leftValue": "={{ $json.output.email }}",
+              "rightValue": "@",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5e3603c3-cf29-4e79-933b-3c91cec9b31c",
+      "name": "¿Tiene nombre y email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        560,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/REEMPLAZAR_POR_ID_DE_TU_PLANILLA/edit",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Fecha": "={{ $now.setZone('America/Argentina/Buenos_Aires').toFormat('yyyy-MM-dd HH:mm') }}",
+            "Session_ID": "={{ $('Entrada: contrato Worker Leads').item.json.session_id }}",
+            "Nombre": "={{ $('Extraer y calificar lead').item.json.output.nombre }}",
+            "Email": "={{ $('Extraer y calificar lead').item.json.output.email }}",
+            "Empresa": "={{ $('Extraer y calificar lead').item.json.output.empresa || 'No informado' }}",
+            "Necesidad": "={{ $('Extraer y calificar lead').item.json.output.necesidad }}",
+            "Presupuesto": "={{ $('Extraer y calificar lead').item.json.output.presupuesto }}",
+            "Rol_Decision": "={{ $('Extraer y calificar lead').item.json.output.rol_decision }}",
+            "Plazo": "={{ $('Extraer y calificar lead').item.json.output.plazo }}",
+            "Calificacion": "={{ $('Extraer y calificar lead').item.json.output.calificacion }}",
+            "Resumen": "={{ $('Extraer y calificar lead').item.json.output.resumen }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Fecha",
+              "displayName": "Fecha",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Session_ID",
+              "displayName": "Session_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Nombre",
+              "displayName": "Nombre",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Empresa",
+              "displayName": "Empresa",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Necesidad",
+              "displayName": "Necesidad",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Presupuesto",
+              "displayName": "Presupuesto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Rol_Decision",
+              "displayName": "Rol_Decision",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Plazo",
+              "displayName": "Plazo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Calificacion",
+              "displayName": "Calificacion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Resumen",
+              "displayName": "Resumen",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "7a782d23-ecde-4c0b-af83-f6fbc5b84920",
+      "name": "Registrar lead en Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        800,
+        -200
+      ],
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "6f327e65-6b9b-4f1b-b7a9-d2a527e7bd6a",
+              "name": "status",
+              "value": "success",
+              "type": "string"
+            },
+            {
+              "id": "431324a5-4506-41e3-a2bc-8059702da2b3",
+              "name": "worker",
+              "value": "worker_leads",
+              "type": "string"
+            },
+            {
+              "id": "81ae2670-54c2-41e7-8240-cb18dfca949f",
+              "name": "data",
+              "value": "={{ Object.assign({ nombre: $('Extraer y calificar lead').item.json.output.nombre, email: $('Extraer y calificar lead').item.json.output.email, empresa: $('Extraer y calificar lead').item.json.output.empresa, necesidad: $('Extraer y calificar lead').item.json.output.necesidad, presupuesto: $('Extraer y calificar lead').item.json.output.presupuesto, rol_decision: $('Extraer y calificar lead').item.json.output.rol_decision, plazo: $('Extraer y calificar lead').item.json.output.plazo, calificacion: $('Extraer y calificar lead').item.json.output.calificacion, resumen: $('Extraer y calificar lead').item.json.output.resumen, faltantes: $('Extraer y calificar lead').item.json.output.faltantes }, { registrado: true }) }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "18b21eeb-5f0f-497c-a1e2-e97e49532dc6",
+      "name": "Salida OK (success)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1080,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e0b9266b-3bb3-46ef-9511-2cb3454f3ddc",
+              "name": "status",
+              "value": "incomplete",
+              "type": "string"
+            },
+            {
+              "id": "483c01d6-a9b1-43b8-885c-89c7215bf100",
+              "name": "worker",
+              "value": "worker_leads",
+              "type": "string"
+            },
+            {
+              "id": "282304a8-5c88-4fed-918a-c61384f737d9",
+              "name": "data",
+              "value": "={{ Object.assign({ nombre: $('Extraer y calificar lead').item.json.output.nombre, email: $('Extraer y calificar lead').item.json.output.email, empresa: $('Extraer y calificar lead').item.json.output.empresa, necesidad: $('Extraer y calificar lead').item.json.output.necesidad, presupuesto: $('Extraer y calificar lead').item.json.output.presupuesto, rol_decision: $('Extraer y calificar lead').item.json.output.rol_decision, plazo: $('Extraer y calificar lead').item.json.output.plazo, calificacion: $('Extraer y calificar lead').item.json.output.calificacion, resumen: $('Extraer y calificar lead').item.json.output.resumen, faltantes: $('Extraer y calificar lead').item.json.output.faltantes }, { registrado: false }) }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7847d6b7-5174-40e4-9902-450a81f6c7e3",
+      "name": "Salida datos incompletos",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        800,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "120c1033-947c-4068-8684-5dbf4e14a4f6",
+              "name": "status",
+              "value": "error",
+              "type": "string"
+            },
+            {
+              "id": "e7569f12-cdf9-455a-91c1-6307fc80fd88",
+              "name": "worker",
+              "value": "worker_leads",
+              "type": "string"
+            },
+            {
+              "id": "91285704-2ce8-4d63-acd6-f2eab81fd7d5",
+              "name": "message",
+              "value": "={{ 'Falló el registro del lead: ' + ($json.error?.message || $json.error || 'error desconocido') }}",
+              "type": "string"
+            },
+            {
+              "id": "3b44423e-7ab5-4e45-93a3-7571e5004398",
+              "name": "data",
+              "value": "={{ { registrado: false } }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ab2d9d08-df01-4f9f-bf32-9b4ecc12bbe3",
+      "name": "Salida de contingencia (error)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1080,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Worker 1 · Extracción y registro de leads\n**Tarea atómica:** extraer datos del mensaje, calificar (BANT) y registrar en Sheets.\n\n**Entrada:** `session_id`, `mensaje`\n**Salida:** `{ status, worker, data }`\n- `success` → lead registrado\n- `incomplete` → faltan nombre o email (no registra)\n- `error` → contingencia si falla la IA o Sheets\n\nTimeout del workflow: 120 s · Sheets reintenta 2 veces",
+        "height": 300,
+        "width": 520,
+        "color": 5
+      },
+      "id": "dae1dcee-2d30-41b2-8680-6ed370d7097e",
+      "name": "Nota W1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -420
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Entrada: contrato Worker Leads": {
+      "main": [
+        [
+          {
+            "node": "Extraer y calificar lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model (GPT-4o)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Extraer y calificar lead",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer y calificar lead": {
+      "main": [
+        [
+          {
+            "node": "¿Tiene nombre y email?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Salida de contingencia (error)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Tiene nombre y email?": {
+      "main": [
+        [
+          {
+            "node": "Registrar lead en Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Salida datos incompletos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar lead en Sheets": {
+      "main": [
+        [
+          {
+            "node": "Salida OK (success)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Salida de contingencia (error)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "executionTimeout": 120,
+    "callerPolicy": "workflowsFromSameOwner",
+    "saveManualExecutions": true
+  },
+  "versionId": "1956dd8d-a851-4eba-ba44-595dbb8f19be",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

@@ -1,0 +1,763 @@
+{
+  "name": "Manager - Orquestador Multi-Agente (M2)",
+  "nodes": [
+    {
+      "parameters": {
+        "public": false,
+        "options": {
+          "title": "Atlas Consultoría Digital",
+          "subtitle": "Asistente comercial",
+          "inputPlaceholder": "Escribí tu consulta..."
+        }
+      },
+      "id": "daec3116-c706-4bb4-87ff-fc5a8d5e688d",
+      "name": "Chat de entrada",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "5438747d-e6df-432c-b52a-9f71c8e0ecf8"
+    },
+    {
+      "parameters": {
+        "inputText": "={{ $json.chatInput }}",
+        "categories": {
+          "categories": [
+            {
+              "category": "LEAD_COMERCIAL",
+              "description": "La persona quiere contratar o evaluar contratar un servicio y aporta datos propios: nombre, email, empresa, necesidad concreta, presupuesto o plazo."
+            },
+            {
+              "category": "CONSULTA_SERVICIOS",
+              "description": "Saludos o preguntas generales sobre qué servicios ofrece Atlas (automatización de procesos, agentes de IA, integraciones) o cómo trabaja, sin pedir precios ni reclamar."
+            },
+            {
+              "category": "ESCALAMIENTO_HUMANO",
+              "description": "Pide hablar con una persona, pide precios, cotización o propuesta formal, hace un reclamo o es un cliente actual con un problema."
+            }
+          ]
+        },
+        "options": {
+          "fallback": "other",
+          "systemPromptTemplate": "Sos el router de triaje de Atlas Consultoría Digital. Clasificá el mensaje del cliente en UNA sola categoría de la lista cerrada. Si dudás entre una categoría y escalar, elegí ESCALAMIENTO_HUMANO. Si no encaja en ninguna, usá la categoría de fallback. Respondé solo con el JSON pedido."
+        }
+      },
+      "id": "a6eb0670-c63d-4778-a4b1-e55a56a8838c",
+      "name": "Router de intención",
+      "type": "@n8n/n8n-nodes-langchain.textClassifier",
+      "typeVersion": 1,
+      "position": [
+        240,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "gpt-4o"
+        },
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "id": "957e8b31-750d-44e0-9ea9-ba04cf5d2af9",
+      "name": "OpenAI Chat Model (GPT-4o)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "307153fa-0a9c-4ed2-8cab-558e91c36a35",
+              "name": "session_id",
+              "value": "={{ $('Chat de entrada').first().json.sessionId }}",
+              "type": "string"
+            },
+            {
+              "id": "27d15216-e989-4d60-a203-f19e60cc8d4b",
+              "name": "mensaje",
+              "value": "={{ $('Chat de entrada').first().json.chatInput }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9ad26b20-c836-4909-b5e4-2ed2dfd7650b",
+      "name": "Contrato → Worker 1",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        600,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "session_id": "={{ $json.session_id }}",
+            "mensaje": "={{ $json.mensaje }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "session_id",
+              "displayName": "session_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "mensaje",
+              "displayName": "mensaje",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "b5729ef1-c9bb-4c68-9584-a542bc67f421",
+      "name": "Delegar → Worker 1 (Leads)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        840,
+        -100
+      ],
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a65cc1f5-5670-47a6-b00f-67caabb8aa50",
+              "name": "intencion",
+              "value": "LEAD_COMERCIAL",
+              "type": "string"
+            },
+            {
+              "id": "83514380-4839-4285-9960-796b6b3daabd",
+              "name": "mensaje_cliente",
+              "value": "={{ $('Chat de entrada').first().json.chatInput }}",
+              "type": "string"
+            },
+            {
+              "id": "a37719f4-a087-44fa-be4f-0ac5f0f3c6ec",
+              "name": "resultado_worker",
+              "value": "={{ { status: $json.status, data: $json.data, message: $json.message } }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d79d5337-beb0-4815-9eee-8343de219ec4",
+      "name": "Contrato → Worker 2 (lead)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1100,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4f848a75-3965-4ffa-918b-1ea6878d4183",
+              "name": "intencion",
+              "value": "CONSULTA_SERVICIOS",
+              "type": "string"
+            },
+            {
+              "id": "4a03952e-27df-4dd1-ad0d-344dcda6e10a",
+              "name": "mensaje_cliente",
+              "value": "={{ $('Chat de entrada').first().json.chatInput }}",
+              "type": "string"
+            },
+            {
+              "id": "c346dc1d-f8d7-4dcf-a9c4-ceae60245910",
+              "name": "resultado_worker",
+              "value": "={{ {} }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5532324e-eb24-4b35-9d5d-4896f5ac8836",
+      "name": "Contrato → Worker 2 (consulta)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1100,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "intencion": "={{ $json.intencion }}",
+            "mensaje_cliente": "={{ $json.mensaje_cliente }}",
+            "resultado_worker": "={{ $json.resultado_worker }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "intencion",
+              "displayName": "intencion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "mensaje_cliente",
+              "displayName": "mensaje_cliente",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "resultado_worker",
+              "displayName": "resultado_worker",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "d7945f2b-6953-442b-a25a-2ae02c8c358a",
+      "name": "Delegar → Worker 2 (Redacción)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1360,
+        20
+      ],
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "16757989-e2c7-4a45-8af1-197b16cf327f",
+              "name": "intencion",
+              "value": "ESCALAMIENTO_HUMANO",
+              "type": "string"
+            },
+            {
+              "id": "00ad3534-8d49-40ed-89a5-2370c4838d8b",
+              "name": "mensaje_cliente",
+              "value": "={{ $('Chat de entrada').first().json.chatInput }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "11b5f822-39ad-46b6-938d-9ed939c86e33",
+      "name": "Ruta: escalamiento",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        600,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4610e599-e865-4883-a3db-9029fbe7ea5e",
+              "name": "intencion",
+              "value": "FUERA_DE_TAXONOMIA",
+              "type": "string"
+            },
+            {
+              "id": "eacaf2fb-f963-41c2-9b64-4c34655ffbf5",
+              "name": "mensaje_cliente",
+              "value": "={{ $('Chat de entrada').first().json.chatInput }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "beeedffe-4f6c-4815-ac5d-25dfc772be91",
+      "name": "Ruta: fuera de taxonomía",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        600,
+        580
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "justigil9@gmail.com",
+        "subject": "=[HITL] Derivación a consultor - {{ $json.intencion }}",
+        "emailType": "text",
+        "message": "=El router derivó una conversación a revisión humana.\n\nMotivo: {{ $json.intencion }}\nSession_ID: {{ $('Chat de entrada').first().json.sessionId }}\nMensaje del cliente:\n{{ $json.mensaje_cliente }}\n\nAcción requerida: contactar al cliente.",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "dc21a694-ecec-4374-a289-5e800fbee41e",
+      "name": "Alerta a supervisor (HITL)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        860,
+        480
+      ],
+      "webhookId": "32bf9fb7-c95e-427a-84f6-25afbf7e4753",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "da29f228-33a1-49c6-b164-f6611e7970dc",
+              "name": "status",
+              "value": "escalated",
+              "type": "string"
+            },
+            {
+              "id": "57611b44-eb40-4e60-9876-8d0c6e066e08",
+              "name": "worker",
+              "value": "supervisor_humano",
+              "type": "string"
+            },
+            {
+              "id": "0e24796c-6095-4d07-85b6-85cc6caf34dc",
+              "name": "data",
+              "value": "={{ $('Ruta: escalamiento').isExecuted ? { intencion: 'ESCALAMIENTO_HUMANO', respuesta: 'Te voy a derivar con un consultor de nuestro equipo, que te va a contactar a la brevedad.' } : { intencion: 'FUERA_DE_TAXONOMIA', respuesta: 'Solo puedo ayudarte con consultas sobre nuestros servicios de automatización, agentes de IA e integraciones. Igualmente, un consultor va a revisar tu mensaje y te va a contactar si corresponde.' } }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c29e5426-0a44-49b4-b844-9340231537ef",
+      "name": "Respuesta de escalamiento",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1100,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "3cd47cf3-3295-4839-9939-2970a6d48a55",
+              "name": "status",
+              "value": "error",
+              "type": "string"
+            },
+            {
+              "id": "4b2f1c79-7c11-4251-ba69-a0e13effde8e",
+              "name": "worker",
+              "value": "manager",
+              "type": "string"
+            },
+            {
+              "id": "c020f5c4-9c9a-4dba-bd8f-0c7485a96a6b",
+              "name": "data",
+              "value": "={{ { intencion: 'ERROR_TECNICO', respuesta: 'Tuvimos un inconveniente técnico al procesar tu consulta. Un consultor de nuestro equipo te va a contactar a la brevedad.' } }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "39eacfb2-7379-4354-9f6f-e7333a4ccfaf",
+      "name": "Fallback técnico del Manager",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1360,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5878825f-601d-49b7-8aa2-6ada82a6556f",
+              "name": "ruta",
+              "value": "={{ $json.data?.intencion || 'DESCONOCIDA' }}",
+              "type": "string"
+            },
+            {
+              "id": "e02b120b-3c0e-40ad-9995-658ced1ad009",
+              "name": "status",
+              "value": "={{ $json.status }}",
+              "type": "string"
+            },
+            {
+              "id": "c8ed1c75-1d32-4156-bc0e-bd54623fddf9",
+              "name": "worker",
+              "value": "={{ $json.worker }}",
+              "type": "string"
+            },
+            {
+              "id": "01f924cd-df61-416b-95c3-89a3491a7e0d",
+              "name": "respuesta",
+              "value": "={{ $json.data?.respuesta || 'Gracias por tu mensaje. Un consultor te va a contactar a la brevedad.' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3a1361bb-f932-490e-98fa-ee8541346dd3",
+      "name": "Unificar resultado",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1640,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "justigil9@gmail.com",
+        "subject": "=[Trazabilidad] Ruta {{ $json.ruta }} - {{ $json.status }} - Ejecución {{ $execution.id }}",
+        "emailType": "text",
+        "message": "=TRAZABILIDAD MULTI-AGENTE - ATLAS CONSULTORÍA DIGITAL\n\nFecha: {{ $now.setZone('America/Argentina/Buenos_Aires').toFormat('yyyy-MM-dd HH:mm:ss') }}\nEjecución Manager: {{ $execution.id }}\nSession_ID: {{ $('Chat de entrada').first().json.sessionId }}\n\nMENSAJE DEL CLIENTE:\n{{ $('Chat de entrada').first().json.chatInput }}\n\nRUTA ELEGIDA POR EL ROUTER: {{ $json.ruta }}\nESTADO FINAL: {{ $json.status }} (último responsable: {{ $json.worker }})\n\n--- WORKER 1 (Leads) ---\n{{ $('Delegar → Worker 1 (Leads)').isExecuted ? 'Parámetros enviados: ' + JSON.stringify($('Contrato → Worker 1').first().json) + '\\nRespuesta: ' + JSON.stringify($('Delegar → Worker 1 (Leads)').first().json) : 'No invocado' }}\n\n--- WORKER 2 (Redacción) ---\n{{ $('Delegar → Worker 2 (Redacción)').isExecuted ? 'Parámetros enviados: ' + JSON.stringify($('Contrato → Worker 2 (lead)').isExecuted ? $('Contrato → Worker 2 (lead)').first().json : $('Contrato → Worker 2 (consulta)').first().json) + '\\nRespuesta: ' + JSON.stringify($('Delegar → Worker 2 (Redacción)').first().json) : 'No invocado' }}\n\nRESPUESTA ENVIADA AL CLIENTE:\n{{ $json.respuesta }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "12df74ce-4ccc-452b-a022-dcdf21cddafc",
+      "name": "Log de trazabilidad (Gmail)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1880,
+        200
+      ],
+      "webhookId": "f4aa5696-90a2-4c97-a78a-9fffd621ab5f",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c734dce3-42ec-4feb-895b-8a2b0b5afa98",
+              "name": "output",
+              "value": "={{ $('Unificar resultado').first().json.respuesta }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3ac0c619-c6ab-4ba1-b6e6-af5c7fd9308c",
+      "name": "Respuesta al chat",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2120,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Manager · Orquestador (patrón Manager-Worker)\n1. **Router de intención** (clasificador semántico, taxonomía cerrada): LEAD_COMERCIAL · CONSULTA_SERVICIOS · ESCALAMIENTO_HUMANO · *Other* (fallback)\n2. **Contratos (Set)** antes de cada delegación: solo viajan los campos mínimos\n3. **Execute Workflow** con *Wait for sub-workflow completion* activado, 2 reintentos y salida de error\n4. **Fallback técnico** si un Worker no responde\n5. **HITL**: alerta por mail ante escalamiento o intención fuera de taxonomía\n6. **Log de trazabilidad**: qué Worker se invocó, qué recibió y qué devolvió",
+        "height": 320,
+        "width": 620,
+        "color": 5
+      },
+      "id": "662ba6d6-beaf-4192-8015-a0275e9335bd",
+      "name": "Nota Manager",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -460
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Chat de entrada": {
+      "main": [
+        [
+          {
+            "node": "Router de intención",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model (GPT-4o)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Router de intención",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Router de intención": {
+      "main": [
+        [
+          {
+            "node": "Contrato → Worker 1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Contrato → Worker 2 (consulta)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ruta: escalamiento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ruta: fuera de taxonomía",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contrato → Worker 1": {
+      "main": [
+        [
+          {
+            "node": "Delegar → Worker 1 (Leads)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delegar → Worker 1 (Leads)": {
+      "main": [
+        [
+          {
+            "node": "Contrato → Worker 2 (lead)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fallback técnico del Manager",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contrato → Worker 2 (lead)": {
+      "main": [
+        [
+          {
+            "node": "Delegar → Worker 2 (Redacción)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contrato → Worker 2 (consulta)": {
+      "main": [
+        [
+          {
+            "node": "Delegar → Worker 2 (Redacción)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delegar → Worker 2 (Redacción)": {
+      "main": [
+        [
+          {
+            "node": "Unificar resultado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fallback técnico del Manager",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ruta: escalamiento": {
+      "main": [
+        [
+          {
+            "node": "Alerta a supervisor (HITL)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ruta: fuera de taxonomía": {
+      "main": [
+        [
+          {
+            "node": "Alerta a supervisor (HITL)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alerta a supervisor (HITL)": {
+      "main": [
+        [
+          {
+            "node": "Respuesta de escalamiento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respuesta de escalamiento": {
+      "main": [
+        [
+          {
+            "node": "Unificar resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fallback técnico del Manager": {
+      "main": [
+        [
+          {
+            "node": "Unificar resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unificar resultado": {
+      "main": [
+        [
+          {
+            "node": "Log de trazabilidad (Gmail)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log de trazabilidad (Gmail)": {
+      "main": [
+        [
+          {
+            "node": "Respuesta al chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "versionId": "7e0c0c18-4ce4-4afc-b770-1d9cef07ab64",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

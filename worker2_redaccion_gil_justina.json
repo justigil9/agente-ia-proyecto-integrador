@@ -1,0 +1,225 @@
+{
+  "name": "Worker 2 - Redacción de respuesta",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "intencion"
+            },
+            {
+              "name": "mensaje_cliente"
+            },
+            {
+              "name": "resultado_worker",
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "id": "43199ff6-eae1-4ebf-80f8-09ce0f0eec6f",
+      "name": "Entrada: contrato Worker Redacción",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Intención: {{ $json.intencion }}\n\nMensaje del cliente:\n{{ $json.mensaje_cliente }}\n\nResultado del worker anterior (JSON):\n{{ JSON.stringify($json.resultado_worker || {}) }}\n\nRedactá la respuesta para el cliente.",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "Sos el redactor de respuestas de Atlas Consultoría Digital, consultora que implementa automatización de procesos, agentes de IA e integraciones entre sistemas para empresas medianas.\nTu única tarea es redactar el mensaje final que va a leer el cliente en el chat.\n\nREGLAS:\n- Español neutro y estándar, tono profesional y cordial, máximo 4 oraciones.\n- No uses lenguaje inclusivo ni sus variantes gráficas (x, @, e).\n- No des precios, cotizaciones, descuentos ni fechas.\n- No inventes datos: usá solo lo que está en el resultado recibido.\n- Devolvé solo el texto del mensaje, sin comillas ni explicaciones.\n\nCÓMO RESPONDER SEGÚN EL CASO:\n- intencion LEAD_COMERCIAL y status success: agradecé por nombre, confirmá que se registraron sus datos y que un consultor lo va a contactar.\n- intencion LEAD_COMERCIAL y status incomplete: agradecé el interés y pedí amablemente los datos que figuran en \"faltantes\" (como máximo tres por mensaje).\n- intencion LEAD_COMERCIAL y status error: no digas que se registraron los datos; indicá que un consultor lo va a contactar a la brevedad.\n- intencion CONSULTA_SERVICIOS: explicá brevemente los servicios relacionados con la consulta e invitá a compartir nombre, email, empresa y necesidad para que un consultor lo contacte."
+            }
+          ]
+        }
+      },
+      "id": "59e0faf6-8eb2-4a2b-96fa-953a35254670",
+      "name": "Redactar respuesta",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.5,
+      "position": [
+        260,
+        0
+      ],
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "gpt-4o"
+        },
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "id": "d414795b-03d8-4e1e-a96b-339da3c30d40",
+      "name": "OpenAI Chat Model (GPT-4o)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        260,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "839c72db-2d05-4953-a146-f99e679c2b52",
+              "name": "status",
+              "value": "success",
+              "type": "string"
+            },
+            {
+              "id": "93a335bd-6f05-48d4-a732-1166fc606428",
+              "name": "worker",
+              "value": "worker_redaccion",
+              "type": "string"
+            },
+            {
+              "id": "8ca48652-cda7-4362-9cd3-ffddb9d84d36",
+              "name": "data",
+              "value": "={{ { intencion: $('Entrada: contrato Worker Redacción').item.json.intencion, respuesta: $json.text.trim() } }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "134b0253-157a-468d-a207-670e983795bb",
+      "name": "Salida OK (success)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        600,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d0b1c415-119b-4a22-b1e7-6644b10dc2f0",
+              "name": "status",
+              "value": "error",
+              "type": "string"
+            },
+            {
+              "id": "b2f06227-15bf-43cf-8022-b0a61b677734",
+              "name": "worker",
+              "value": "worker_redaccion",
+              "type": "string"
+            },
+            {
+              "id": "078f0936-6eb5-405f-bf6f-2d61d63a37f5",
+              "name": "message",
+              "value": "={{ 'Falló la redacción: ' + ($json.error?.message || $json.error || 'error desconocido') }}",
+              "type": "string"
+            },
+            {
+              "id": "51e0a979-6332-42a8-b950-8d298d933622",
+              "name": "data",
+              "value": "={{ { intencion: $('Entrada: contrato Worker Redacción').item.json.intencion, respuesta: 'Gracias por tu mensaje. En este momento no puedo completar la respuesta, pero un consultor de nuestro equipo te va a contactar a la brevedad.' } }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "95d1cf06-2b5b-4f89-94cc-ae9874723c43",
+      "name": "Salida de contingencia (error)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        600,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Worker 2 · Redacción de respuesta al cliente\n**Tarea atómica:** redactar el mensaje final según la intención y el resultado recibido.\n\n**Entrada:** `intencion`, `mensaje_cliente`, `resultado_worker`\n**Salida:** `{ status, worker, data: { intencion, respuesta } }`\n- `error` → devuelve una respuesta de contingencia predefinida\n\nTimeout del workflow: 120 s · la IA reintenta 2 veces",
+        "height": 280,
+        "width": 500,
+        "color": 4
+      },
+      "id": "90415ec0-0e86-4781-970b-bf4b1298a2f7",
+      "name": "Nota W2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -380
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Entrada: contrato Worker Redacción": {
+      "main": [
+        [
+          {
+            "node": "Redactar respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model (GPT-4o)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Redactar respuesta",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redactar respuesta": {
+      "main": [
+        [
+          {
+            "node": "Salida OK (success)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Salida de contingencia (error)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "executionTimeout": 120,
+    "callerPolicy": "workflowsFromSameOwner",
+    "saveManualExecutions": true
+  },
+  "versionId": "3dd5178b-bf2d-4756-8df9-59b8d09967bf",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
